@@ -32,6 +32,7 @@ where
 
 import Graphics.GPipe.Internal.Format
 import Control.Monad.Exception (MonadException, Exception, MonadAsyncException,bracket)
+import Control.Monad.Fix
 import Control.Monad.Trans.Reader
 import qualified Control.Monad.Fail as MF
 import Control.Monad.IO.Class
@@ -104,7 +105,7 @@ class ContextHandler ctx where
 --
 newtype ContextT ctx os m a =
     ContextT (ReaderT (ContextEnv ctx) (StateT (ContextState ctx) m) a)
-    deriving (Functor, Applicative, Monad, MonadIO, MonadException, MonadAsyncException)
+    deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadException, MonadAsyncException)
 
 data ContextEnv ctx = ContextEnv {
     context :: ctx,
