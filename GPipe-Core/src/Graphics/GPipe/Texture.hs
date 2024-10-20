@@ -97,6 +97,9 @@ module Graphics.GPipe.Texture (
     -- | Reading pixels
     readPixelTexture2D,
 
+    -- | Unsafe reads
+    withTexture2D,
+
     -- * Type synonyms
     MaxLevels, Level,
     Size1, Size2, Size3,

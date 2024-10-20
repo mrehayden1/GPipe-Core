@@ -287,6 +287,8 @@ readTextureCubeToBuffer   :: forall ctx b c w os f m. (ContextHandler ctx, Monad
 
 readPixelTexture2D      :: forall ctx b c h w os f m. (ContextHandler ctx, MonadAsyncException m, MonadIO m, BufferFormat b, ColorSampleable c, BufferColor (Color c (ColorElement c)) h ~ b, h ~ HostFormat b) => Texture2D os (Format c) -> Level -> StartPos2 -> ContextT ctx os m h
 
+withTexture2D :: forall ctx a b c h w os f m. (ContextHandler ctx, MonadAsyncException m, MonadIO m, BufferFormat b, ColorSampleable c, BufferColor (Color c (ColorElement c)) h ~ b, h ~ HostFormat b) => Texture2D os (Format c) -> Level -> (Ptr h -> IO a) -> ContextT ctx os m a
+
 getGlColorFormat :: (TextureFormat f, BufferFormat b) => f -> b -> GLenum
 getGlColorFormat f b = let x = getGlFormat f in if x == GL_DEPTH_STENCIL || x == GL_DEPTH_COMPONENT then GL_DEPTH_COMPONENT else getGlPaddedFormat b
 
@@ -718,6 +720,23 @@ readPixelTexture2D t@(Texture2D texn _ ml) l (V2 x y)
             return ptr)
           (liftIO . free)
           (\ptr -> liftIO . peekPixel (undefined :: b) $ ptr `plusPtr` off)
+    where V2 mx my = texture2DSizes t !! l
+
+
+withTexture2D t@(Texture2D texn _ ml) l f
+    | l < 0 || l >= ml = error "withTexture2D, level out of bounds"
+    | otherwise =
+        let b = makeBuffer undefined undefined 0 :: Buffer os b
+            elementSize = bufElementSize b
+        in bracket
+          (liftNonWinContextIO $ do
+            ptr <- mallocBytes $ mx*my*elementSize
+            setGlPixelStoreRange 0 0 0 mx my
+            useTexSync texn GL_TEXTURE_2D
+            glGetTexImage GL_TEXTURE_2D (fromIntegral l) (getGlColorFormat (undefined :: c) (undefined :: b)) (getGlType (undefined :: b)) ptr
+            return ptr)
+          (liftIO . free)
+          (liftIO . f . castPtr)
     where V2 mx my = texture2DSizes t !! l
 
 
