@@ -285,6 +285,8 @@ readTexture2DArrayToBuffer:: forall ctx b c w os f m. (ContextHandler ctx, Monad
 readTexture3DToBuffer     :: forall ctx b c w os f m. (ContextHandler ctx, MonadIO m, BufferFormat b, ColorSampleable c, BufferColor (Color c (ColorElement c)) (HostFormat b) ~ b) => Texture3D os (Format c) -> Level -> StartPos3 -> Size2 -> Buffer os b -> BufferStartPos -> ContextT ctx os m ()
 readTextureCubeToBuffer   :: forall ctx b c w os f m. (ContextHandler ctx, MonadIO m, BufferFormat b, ColorSampleable c, BufferColor (Color c (ColorElement c)) (HostFormat b) ~ b) => TextureCube os (Format c) -> Level -> CubeSide -> StartPos2 -> Size2 -> Buffer os b-> BufferStartPos -> ContextT ctx os m ()
 
+readPixelTexture2D      :: forall ctx b c h w os f m. (ContextHandler ctx, MonadAsyncException m, MonadIO m, BufferFormat b, ColorSampleable c, BufferColor (Color c (ColorElement c)) h ~ b, h ~ HostFormat b) => Texture2D os (Format c) -> Level -> StartPos2 -> ContextT ctx os m h
+
 getGlColorFormat :: (TextureFormat f, BufferFormat b) => f -> b -> GLenum
 getGlColorFormat f b = let x = getGlFormat f in if x == GL_DEPTH_STENCIL || x == GL_DEPTH_COMPONENT then GL_DEPTH_COMPONENT else getGlPaddedFormat b
 
@@ -697,6 +699,27 @@ readTextureCubeToBuffer t@(TextureCube texn _ ml) l s (V2 x y) (V2 w h) b i
                      glGetTexImage (getGlCubeSide s) (fromIntegral l) (getGlColorFormat (undefined :: c) (undefined :: b)) (getGlType (undefined :: b)) (wordPtrToPtr $ fromIntegral $ i*bufElementSize b)
                      glBindBuffer GL_PIXEL_PACK_BUFFER 0
     where mxy = textureCubeSizes t !! l
+
+
+readPixelTexture2D t@(Texture2D texn _ ml) l (V2 x y)
+    | l < 0 || l >= ml = error "readPixelTexture2D, level out of bounds"
+    | x < 0 || x >= mx = error "readPixelTexture2D, x out of bounds"
+    | y < 0 || y >= my = error "readPixelTexture2D, y out of bounds"
+    | otherwise =
+        let b = makeBuffer undefined undefined 0 :: Buffer os b
+            elementSize = bufElementSize b
+            off = (x + y * mx) * elementSize
+        in bracket
+          (liftNonWinContextIO $ do
+            ptr <- mallocBytes $ mx*my*elementSize
+            setGlPixelStoreRange 0 0 0 mx my
+            useTexSync texn GL_TEXTURE_2D
+            glGetTexImage GL_TEXTURE_2D (fromIntegral l) (getGlColorFormat (undefined :: c) (undefined :: b)) (getGlType (undefined :: b)) ptr
+            return ptr)
+          (liftIO . free)
+          (\ptr -> liftIO . peekPixel (undefined :: b) $ ptr `plusPtr` off)
+    where V2 mx my = texture2DSizes t !! l
+
 
 setGlPixelStoreRange :: Int -> Int -> Int -> Int -> Int -> IO ()
 setGlPixelStoreRange x y z w h = do

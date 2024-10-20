@@ -94,6 +94,9 @@ module Graphics.GPipe.Texture (
     readTexture3DToBuffer,
     readTextureCubeToBuffer,
     
+    -- | Reading pixels
+    readPixelTexture2D,
+
     -- * Type synonyms
     MaxLevels, Level,
     Size1, Size2, Size3,
